@@ -1,0 +1,1615 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>SmartBin — IoT E-Waste Classification System</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700;900&family=Exo+2:wght@300;400;600&display=swap');
+
+  :root {
+    --bg: #050d1a;
+    --surface: #0a1628;
+    --panel: #0d1f38;
+    --glow-blue: #00d4ff;
+    --glow-green: #00ff88;
+    --glow-orange: #ff6b00;
+    --glow-purple: #b400ff;
+    --glow-red: #ff003c;
+    --text: #e0f0ff;
+    --muted: #4a6fa5;
+    --bin1: #00d4ff;
+    --bin2: #00ff88;
+    --bin3: #ff6b00;
+    --bin4: #b400ff;
+  }
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  body {
+    font-family: 'Exo 2', sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    min-height: 100vh;
+    overflow-x: hidden;
+    cursor: default;
+  }
+
+  /* Animated grid background */
+  body::before {
+    content: '';
+    position: fixed;
+    inset: 0;
+    background-image:
+      linear-gradient(rgba(0,212,255,0.04) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(0,212,255,0.04) 1px, transparent 1px);
+    background-size: 40px 40px;
+    z-index: 0;
+    pointer-events: none;
+  }
+
+  /* Floating particles */
+  .particle {
+    position: fixed;
+    width: 3px;
+    height: 3px;
+    border-radius: 50%;
+    background: var(--glow-blue);
+    opacity: 0;
+    pointer-events: none;
+    z-index: 0;
+  }
+
+  .header {
+    position: relative;
+    z-index: 10;
+    text-align: center;
+    padding: 28px 20px 18px;
+    border-bottom: 1px solid rgba(0,212,255,0.15);
+    background: linear-gradient(180deg, rgba(0,212,255,0.06) 0%, transparent 100%);
+  }
+
+  .header h1 {
+    font-family: 'Orbitron', sans-serif;
+    font-size: clamp(1.4rem, 4vw, 2.4rem);
+    font-weight: 900;
+    letter-spacing: 4px;
+    background: linear-gradient(135deg, var(--glow-blue) 0%, #ffffff 50%, var(--glow-green) 100%);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+    text-shadow: none;
+  }
+
+  .header p {
+    color: var(--muted);
+    font-size: 0.85rem;
+    letter-spacing: 2px;
+    margin-top: 6px;
+    text-transform: uppercase;
+    font-weight: 300;
+  }
+
+  .status-bar {
+    position: relative;
+    z-index: 10;
+    display: flex;
+    justify-content: center;
+    gap: 24px;
+    padding: 10px 20px;
+    background: rgba(0,212,255,0.04);
+    border-bottom: 1px solid rgba(0,212,255,0.08);
+    flex-wrap: wrap;
+  }
+
+  .status-item {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 0.72rem;
+    letter-spacing: 1px;
+    color: var(--muted);
+    text-transform: uppercase;
+  }
+
+  .status-dot {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    background: var(--glow-green);
+    animation: pulse-dot 2s ease-in-out infinite;
+  }
+
+  @keyframes pulse-dot {
+    0%, 100% { opacity: 1; box-shadow: 0 0 6px var(--glow-green); }
+    50% { opacity: 0.4; box-shadow: none; }
+  }
+
+  /* Main layout */
+  .main {
+    position: relative;
+    z-index: 5;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 28px;
+    padding: 28px 16px 40px;
+  }
+
+  /* Drop zone */
+  .drop-zone {
+    width: 100%;
+    max-width: 700px;
+    background: var(--panel);
+    border: 2px dashed rgba(0,212,255,0.25);
+    border-radius: 20px;
+    padding: 28px;
+    text-align: center;
+    position: relative;
+    overflow: hidden;
+    transition: all 0.4s ease;
+  }
+
+  .drop-zone::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background: radial-gradient(ellipse at center, rgba(0,212,255,0.06) 0%, transparent 70%);
+    pointer-events: none;
+  }
+
+  .drop-zone-title {
+    font-family: 'Orbitron', sans-serif;
+    font-size: 0.75rem;
+    letter-spacing: 3px;
+    color: var(--muted);
+    text-transform: uppercase;
+    margin-bottom: 16px;
+  }
+
+  .e-waste-items {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 12px;
+    justify-content: center;
+  }
+
+  .waste-item {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 6px;
+    padding: 14px 16px;
+    background: rgba(255,255,255,0.04);
+    border: 1px solid rgba(255,255,255,0.1);
+    border-radius: 14px;
+    cursor: pointer;
+    transition: all 0.3s ease;
+    min-width: 80px;
+    position: relative;
+    overflow: hidden;
+    user-select: none;
+  }
+
+  .waste-item::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background: var(--item-color, rgba(0,212,255,0.1));
+    opacity: 0;
+    transition: opacity 0.3s;
+    border-radius: 14px;
+  }
+
+  .waste-item:hover::before { opacity: 1; }
+
+  .waste-item:hover {
+    transform: translateY(-4px) scale(1.06);
+    border-color: var(--item-color, var(--glow-blue));
+    box-shadow: 0 8px 28px var(--item-shadow, rgba(0,212,255,0.3));
+  }
+
+  .waste-item:active {
+    transform: translateY(0px) scale(0.96);
+  }
+
+  .waste-icon {
+    font-size: 2rem;
+    line-height: 1;
+    position: relative;
+    z-index: 1;
+  }
+
+  .waste-label {
+    font-size: 0.65rem;
+    letter-spacing: 1px;
+    color: var(--text);
+    text-align: center;
+    font-weight: 600;
+    text-transform: uppercase;
+    position: relative;
+    z-index: 1;
+  }
+
+  /* Scanning animation overlay */
+  .scan-overlay {
+    position: fixed;
+    inset: 0;
+    z-index: 100;
+    pointer-events: none;
+    opacity: 0;
+    transition: opacity 0.3s;
+  }
+
+  .scan-overlay.active {
+    opacity: 1;
+    pointer-events: all;
+  }
+
+  .scan-panel {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%) scale(0.8);
+    background: rgba(5, 13, 26, 0.97);
+    border: 1px solid var(--scan-color, var(--glow-blue));
+    border-radius: 24px;
+    padding: 36px;
+    max-width: 380px;
+    width: 90%;
+    text-align: center;
+    box-shadow: 0 0 80px var(--scan-shadow, rgba(0,212,255,0.3)), inset 0 0 40px rgba(0,212,255,0.03);
+    transition: all 0.5s cubic-bezier(0.34, 1.56, 0.64, 1);
+  }
+
+  .scan-overlay.active .scan-panel {
+    transform: translate(-50%, -50%) scale(1);
+  }
+
+  .scan-item-icon {
+    font-size: 3.5rem;
+    margin-bottom: 12px;
+    display: block;
+    animation: float-icon 2s ease-in-out infinite;
+  }
+
+  @keyframes float-icon {
+    0%, 100% { transform: translateY(0); }
+    50% { transform: translateY(-8px); }
+  }
+
+  .scan-title {
+    font-family: 'Orbitron', sans-serif;
+    font-size: 1rem;
+    font-weight: 700;
+    letter-spacing: 2px;
+    margin-bottom: 20px;
+  }
+
+  .scan-progress {
+    height: 4px;
+    background: rgba(255,255,255,0.08);
+    border-radius: 4px;
+    overflow: hidden;
+    margin-bottom: 20px;
+  }
+
+  .scan-bar {
+    height: 100%;
+    width: 0%;
+    background: var(--scan-color, var(--glow-blue));
+    border-radius: 4px;
+    transition: width 0.1s linear;
+    box-shadow: 0 0 12px var(--scan-color, var(--glow-blue));
+  }
+
+  .scan-results {
+    display: none;
+    flex-direction: column;
+    gap: 8px;
+    margin-bottom: 20px;
+    text-align: left;
+  }
+
+  .scan-results.visible { display: flex; }
+
+  .result-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 8px 12px;
+    background: rgba(255,255,255,0.04);
+    border-radius: 8px;
+    font-size: 0.75rem;
+    letter-spacing: 1px;
+    animation: slide-in 0.3s ease forwards;
+    opacity: 0;
+  }
+
+  @keyframes slide-in {
+    from { opacity: 0; transform: translateX(-10px); }
+    to { opacity: 1; transform: translateX(0); }
+  }
+
+  .result-label { color: var(--muted); text-transform: uppercase; }
+  .result-value { font-weight: 600; }
+
+  .dispatch-btn {
+    padding: 13px 28px;
+    background: var(--scan-color, var(--glow-blue));
+    color: var(--bg);
+    border: none;
+    border-radius: 12px;
+    font-family: 'Orbitron', sans-serif;
+    font-size: 0.8rem;
+    font-weight: 700;
+    letter-spacing: 2px;
+    cursor: pointer;
+    width: 100%;
+    margin-bottom: 10px;
+    transition: all 0.3s;
+    display: none;
+    box-shadow: 0 4px 24px var(--scan-shadow, rgba(0,212,255,0.4));
+  }
+
+  .dispatch-btn.visible { display: block; }
+  .dispatch-btn:hover { filter: brightness(1.2); transform: translateY(-2px); }
+
+  .close-scan {
+    background: transparent;
+    border: 1px solid rgba(255,255,255,0.12);
+    color: var(--muted);
+    border-radius: 10px;
+    padding: 8px 16px;
+    font-size: 0.72rem;
+    cursor: pointer;
+    letter-spacing: 1px;
+    width: 100%;
+    transition: all 0.3s;
+    display: none;
+    font-family: 'Exo 2', sans-serif;
+  }
+
+  .close-scan.visible { display: block; }
+  .close-scan:hover { border-color: var(--muted); color: var(--text); }
+
+  .scan-status-text {
+    font-size: 0.78rem;
+    color: var(--muted);
+    letter-spacing: 2px;
+    text-transform: uppercase;
+    margin-bottom: 16px;
+    min-height: 22px;
+  }
+
+  .scan-bg-effect {
+    position: absolute;
+    inset: 0;
+    background: var(--bg);
+    opacity: 0.85;
+  }
+
+  /* Sensor badges in scan panel */
+  .sensor-badges {
+    display: flex;
+    gap: 8px;
+    justify-content: center;
+    flex-wrap: wrap;
+    margin-bottom: 18px;
+  }
+
+  .sensor-badge {
+    padding: 4px 10px;
+    border-radius: 20px;
+    font-size: 0.62rem;
+    letter-spacing: 1px;
+    text-transform: uppercase;
+    border: 1px solid;
+    opacity: 0.5;
+    transition: all 0.3s;
+  }
+
+  .sensor-badge.active {
+    opacity: 1;
+    box-shadow: 0 0 10px currentColor;
+    animation: sensor-ping 0.6s ease;
+  }
+
+  @keyframes sensor-ping {
+    0% { transform: scale(1.2); }
+    100% { transform: scale(1); }
+  }
+
+  /* Dustbins section */
+  .bins-section {
+    width: 100%;
+    max-width: 700px;
+  }
+
+  .bins-title {
+    font-family: 'Orbitron', sans-serif;
+    font-size: 0.7rem;
+    letter-spacing: 3px;
+    color: var(--muted);
+    text-align: center;
+    text-transform: uppercase;
+    margin-bottom: 18px;
+  }
+
+  .bins-grid {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 14px;
+  }
+
+  @media (min-width: 500px) {
+    .bins-grid { grid-template-columns: repeat(4, 1fr); }
+  }
+
+  .bin-card {
+    background: var(--panel);
+    border: 1px solid rgba(255,255,255,0.07);
+    border-radius: 18px;
+    padding: 18px 12px;
+    text-align: center;
+    cursor: pointer;
+    transition: all 0.4s cubic-bezier(0.34, 1.56, 0.64, 1);
+    position: relative;
+    overflow: hidden;
+    user-select: none;
+  }
+
+  .bin-card::before {
+    content: '';
+    position: absolute;
+    bottom: 0; left: 0; right: 0;
+    height: var(--fill-height, 0%);
+    background: var(--bin-color);
+    opacity: 0.12;
+    transition: height 0.8s cubic-bezier(0.34, 1.56, 0.64, 1);
+    border-radius: 0 0 18px 18px;
+  }
+
+  .bin-card:hover {
+    transform: translateY(-6px) scale(1.04);
+    border-color: var(--bin-color);
+    box-shadow: 0 12px 40px var(--bin-shadow);
+  }
+
+  .bin-card.receiving {
+    animation: bin-receive 0.6s cubic-bezier(0.34, 1.56, 0.64, 1);
+  }
+
+  @keyframes bin-receive {
+    0% { transform: scale(1); }
+    30% { transform: scale(1.15) translateY(-8px); }
+    60% { transform: scale(0.96) translateY(2px); }
+    100% { transform: scale(1) translateY(-6px); }
+  }
+
+  .bin-icon-wrap {
+    position: relative;
+    margin-bottom: 10px;
+  }
+
+  .bin-emoji {
+    font-size: 2.8rem;
+    display: block;
+    line-height: 1;
+    filter: drop-shadow(0 0 10px var(--bin-color));
+    transition: filter 0.3s;
+  }
+
+  .bin-card:hover .bin-emoji {
+    filter: drop-shadow(0 0 20px var(--bin-color));
+  }
+
+  .bin-lid {
+    position: absolute;
+    top: -8px;
+    left: 50%;
+    transform: translateX(-50%) rotate(0deg);
+    transform-origin: center bottom;
+    font-size: 1.4rem;
+    transition: transform 0.4s cubic-bezier(0.34, 1.56, 0.64, 1);
+    pointer-events: none;
+  }
+
+  .bin-card.open .bin-lid {
+    transform: translateX(-50%) rotate(-55deg) translateY(-6px);
+  }
+
+  .bin-name {
+    font-family: 'Orbitron', sans-serif;
+    font-size: 0.62rem;
+    font-weight: 700;
+    letter-spacing: 2px;
+    color: var(--bin-color);
+    text-transform: uppercase;
+    margin-bottom: 5px;
+  }
+
+  .bin-count {
+    font-size: 1.5rem;
+    font-weight: 700;
+    font-family: 'Orbitron', sans-serif;
+    color: var(--text);
+    margin-bottom: 4px;
+  }
+
+  .bin-label {
+    font-size: 0.62rem;
+    color: var(--muted);
+    letter-spacing: 1px;
+    text-transform: uppercase;
+  }
+
+  .bin-fill-bar {
+    margin-top: 10px;
+    height: 3px;
+    background: rgba(255,255,255,0.06);
+    border-radius: 3px;
+    overflow: hidden;
+  }
+
+  .bin-fill-inner {
+    height: 100%;
+    width: 0%;
+    background: var(--bin-color);
+    border-radius: 3px;
+    transition: width 0.8s ease;
+    box-shadow: 0 0 8px var(--bin-color);
+  }
+
+  .bin-sensors {
+    display: flex;
+    gap: 4px;
+    justify-content: center;
+    margin-top: 8px;
+    flex-wrap: wrap;
+  }
+
+  .bin-sensor-dot {
+    width: 5px;
+    height: 5px;
+    border-radius: 50%;
+    background: var(--bin-color);
+    opacity: 0.3;
+    transition: all 0.3s;
+  }
+
+  .bin-card.open .bin-sensor-dot {
+    opacity: 1;
+    box-shadow: 0 0 6px var(--bin-color);
+    animation: blink 0.5s ease infinite alternate;
+  }
+
+  @keyframes blink {
+    from { opacity: 0.5; }
+    to { opacity: 1; }
+  }
+
+  /* Log section */
+  .log-section {
+    width: 100%;
+    max-width: 700px;
+    background: var(--panel);
+    border: 1px solid rgba(0,212,255,0.1);
+    border-radius: 18px;
+    overflow: hidden;
+  }
+
+  .log-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 14px 18px;
+    border-bottom: 1px solid rgba(0,212,255,0.08);
+    background: rgba(0,212,255,0.04);
+  }
+
+  .log-title {
+    font-family: 'Orbitron', sans-serif;
+    font-size: 0.7rem;
+    letter-spacing: 2px;
+    color: var(--glow-blue);
+    text-transform: uppercase;
+  }
+
+  .log-clear {
+    font-size: 0.65rem;
+    letter-spacing: 1px;
+    color: var(--muted);
+    cursor: pointer;
+    text-transform: uppercase;
+    border: 1px solid rgba(255,255,255,0.08);
+    padding: 4px 10px;
+    border-radius: 6px;
+    background: transparent;
+    transition: all 0.3s;
+    font-family: 'Exo 2', sans-serif;
+  }
+
+  .log-clear:hover { border-color: var(--muted); color: var(--text); }
+
+  .log-body {
+    padding: 12px;
+    max-height: 200px;
+    overflow-y: auto;
+    scrollbar-width: thin;
+    scrollbar-color: rgba(0,212,255,0.2) transparent;
+    display: flex;
+    flex-direction: column-reverse;
+    gap: 6px;
+  }
+
+  .log-entry {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 8px 10px;
+    background: rgba(255,255,255,0.03);
+    border-radius: 8px;
+    font-size: 0.72rem;
+    letter-spacing: 0.5px;
+    animation: log-in 0.4s ease;
+    border-left: 2px solid var(--entry-color, var(--glow-blue));
+  }
+
+  @keyframes log-in {
+    from { opacity: 0; transform: translateX(10px); }
+    to { opacity: 1; transform: translateX(0); }
+  }
+
+  .log-time { color: var(--muted); font-size: 0.65rem; white-space: nowrap; }
+  .log-msg { color: var(--text); flex: 1; }
+  .log-tag {
+    font-size: 0.6rem;
+    padding: 2px 7px;
+    border-radius: 10px;
+    font-weight: 700;
+    letter-spacing: 1px;
+    text-transform: uppercase;
+    background: var(--entry-color, var(--glow-blue));
+    color: var(--bg);
+    white-space: nowrap;
+  }
+
+  .log-empty {
+    text-align: center;
+    color: var(--muted);
+    font-size: 0.72rem;
+    letter-spacing: 1px;
+    padding: 20px;
+    text-transform: uppercase;
+  }
+
+  /* Stats bar */
+  .stats-row {
+    display: flex;
+    gap: 10px;
+    width: 100%;
+    max-width: 700px;
+    flex-wrap: wrap;
+  }
+
+  .stat-card {
+    flex: 1;
+    min-width: 120px;
+    background: var(--panel);
+    border: 1px solid rgba(255,255,255,0.06);
+    border-radius: 14px;
+    padding: 14px;
+    position: relative;
+    overflow: hidden;
+  }
+
+  .stat-value {
+    font-family: 'Orbitron', sans-serif;
+    font-size: 1.6rem;
+    font-weight: 900;
+    color: var(--glow-blue);
+    line-height: 1;
+  }
+
+  .stat-label {
+    font-size: 0.62rem;
+    color: var(--muted);
+    letter-spacing: 1.5px;
+    text-transform: uppercase;
+    margin-top: 4px;
+  }
+
+  /* Flying waste animation */
+  .flying-item {
+    position: fixed;
+    font-size: 2rem;
+    pointer-events: none;
+    z-index: 200;
+    transition: all 0.7s cubic-bezier(0.5, 0, 0.5, 1);
+  }
+
+  /* Confetti burst */
+  .burst-particle {
+    position: fixed;
+    width: 6px;
+    height: 6px;
+    border-radius: 2px;
+    pointer-events: none;
+    z-index: 150;
+    animation: burst-fall 0.8s ease-out forwards;
+  }
+
+  @keyframes burst-fall {
+    0% { opacity: 1; transform: translate(0,0) rotate(0deg) scale(1); }
+    100% { opacity: 0; transform: translate(var(--tx), var(--ty)) rotate(360deg) scale(0); }
+  }
+
+  /* Sensor line sweep effect on bin open */
+  .scan-line {
+    position: fixed;
+    left: 0; right: 0;
+    height: 2px;
+    background: linear-gradient(90deg, transparent, var(--line-color, var(--glow-green)), transparent);
+    pointer-events: none;
+    z-index: 120;
+    opacity: 0;
+    box-shadow: 0 0 10px var(--line-color, var(--glow-green));
+  }
+
+  .scan-line.sweeping {
+    animation: sweep-line 0.6s ease-in-out;
+  }
+
+  @keyframes sweep-line {
+    0% { top: 0; opacity: 1; }
+    100% { top: 100vh; opacity: 0; }
+  }
+
+  /* Bottom hint */
+  .hint-bar {
+    position: relative;
+    z-index: 10;
+    text-align: center;
+    padding: 16px;
+    color: var(--muted);
+    font-size: 0.72rem;
+    letter-spacing: 1.5px;
+    text-transform: uppercase;
+    border-top: 1px solid rgba(0,212,255,0.06);
+  }
+
+  .hint-bar span {
+    color: var(--glow-blue);
+    font-weight: 600;
+  }
+
+  /* Responsive */
+  @media (max-width: 400px) {
+    .waste-item { min-width: 68px; padding: 10px 12px; }
+    .waste-icon { font-size: 1.6rem; }
+    .bin-emoji { font-size: 2.2rem; }
+  }
+
+  /* Bin detail modal */
+  .bin-modal {
+    position: fixed;
+    inset: 0;
+    z-index: 90;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    pointer-events: none;
+    opacity: 0;
+    transition: opacity 0.3s;
+  }
+
+  .bin-modal.active {
+    opacity: 1;
+    pointer-events: all;
+  }
+
+  .bin-modal-bg {
+    position: absolute;
+    inset: 0;
+    background: rgba(5,13,26,0.88);
+  }
+
+  .bin-modal-panel {
+    position: relative;
+    z-index: 1;
+    background: var(--panel);
+    border: 1px solid var(--modal-color, var(--glow-blue));
+    border-radius: 24px;
+    padding: 30px;
+    max-width: 360px;
+    width: 90%;
+    box-shadow: 0 0 60px var(--modal-shadow, rgba(0,212,255,0.25));
+    transform: scale(0.9);
+    transition: transform 0.4s cubic-bezier(0.34, 1.56, 0.64, 1);
+  }
+
+  .bin-modal.active .bin-modal-panel { transform: scale(1); }
+
+  .modal-icon { font-size: 3rem; margin-bottom: 10px; display: block; text-align: center; }
+  .modal-name {
+    font-family: 'Orbitron', sans-serif;
+    font-size: 1rem;
+    font-weight: 700;
+    color: var(--modal-color, var(--glow-blue));
+    text-align: center;
+    letter-spacing: 2px;
+    margin-bottom: 18px;
+  }
+
+  .modal-sensors {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    margin-bottom: 18px;
+  }
+
+  .modal-sensor-row {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 8px 12px;
+    background: rgba(255,255,255,0.04);
+    border-radius: 10px;
+    font-size: 0.72rem;
+  }
+
+  .sensor-icon { font-size: 1rem; }
+  .sensor-name { color: var(--muted); flex: 1; letter-spacing: 0.5px; }
+  .sensor-status { color: var(--glow-green); font-size: 0.65rem; font-weight: 600; }
+
+  .modal-items-list {
+    margin-bottom: 18px;
+  }
+
+  .modal-items-title {
+    font-size: 0.65rem;
+    letter-spacing: 2px;
+    color: var(--muted);
+    text-transform: uppercase;
+    margin-bottom: 8px;
+  }
+
+  .modal-items-tags {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+  }
+
+  .modal-tag {
+    padding: 4px 10px;
+    border-radius: 20px;
+    font-size: 0.65rem;
+    background: rgba(255,255,255,0.06);
+    border: 1px solid rgba(255,255,255,0.1);
+    letter-spacing: 0.5px;
+  }
+
+  .modal-close {
+    width: 100%;
+    padding: 12px;
+    background: transparent;
+    border: 1px solid rgba(255,255,255,0.1);
+    border-radius: 12px;
+    color: var(--muted);
+    font-family: 'Orbitron', sans-serif;
+    font-size: 0.7rem;
+    letter-spacing: 2px;
+    cursor: pointer;
+    transition: all 0.3s;
+    text-transform: uppercase;
+  }
+
+  .modal-close:hover { border-color: var(--modal-color); color: var(--text); }
+</style>
+</head>
+<body>
+
+<!-- Scan line effect -->
+<div class="scan-line" id="scanLine"></div>
+
+<!-- Header -->
+<div class="header">
+  <h1>⚡ SMARTBIN</h1>
+  <p>IoT E-Waste Classification & Detection System</p>
+</div>
+
+<!-- Status bar -->
+<div class="status-bar">
+  <div class="status-item"><div class="status-dot"></div> IoT Network: Online</div>
+  <div class="status-item"><div class="status-dot" style="background:var(--glow-blue);animation-delay:0.4s"></div> AI Engine: Active</div>
+  <div class="status-item"><div class="status-dot" style="background:var(--glow-orange);animation-delay:0.8s"></div> Sensors: All Clear</div>
+  <div class="status-item" id="totalStat"><div class="status-dot" style="background:var(--glow-purple);animation-delay:1.2s"></div> Items Sorted: <span id="totalCount" style="color:var(--glow-purple)">0</span></div>
+</div>
+
+<!-- Main content -->
+<div class="main">
+
+  <!-- Stats row -->
+  <div class="stats-row">
+    <div class="stat-card">
+      <div class="stat-value" id="stat-total">0</div>
+      <div class="stat-label">Total Items</div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-value" style="color:var(--glow-green)" id="stat-rate">—</div>
+      <div class="stat-label">Accuracy Rate</div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-value" style="color:var(--glow-orange)" id="stat-metals">0</div>
+      <div class="stat-label">Metals Found</div>
+    </div>
+  </div>
+
+  <!-- E-Waste items drop zone -->
+  <div class="drop-zone">
+    <div class="drop-zone-title">📦 Tap Any E-Waste Item to Scan & Classify</div>
+    <div class="e-waste-items">
+      <!-- Batteries -->
+      <div class="waste-item" style="--item-color:rgba(0,212,255,0.15);--item-shadow:rgba(0,212,255,0.3)" onclick="scanItem(this, 'battery')">
+        <span class="waste-icon">🔋</span>
+        <span class="waste-label">Battery</span>
+      </div>
+      <div class="waste-item" style="--item-color:rgba(0,212,255,0.15);--item-shadow:rgba(0,212,255,0.3)" onclick="scanItem(this, 'battery-li')">
+        <span class="waste-icon">🪫</span>
+        <span class="waste-label">Li Battery</span>
+      </div>
+      <!-- PCB / Circuit boards -->
+      <div class="waste-item" style="--item-color:rgba(0,255,136,0.15);--item-shadow:rgba(0,255,136,0.3)" onclick="scanItem(this, 'pcb')">
+        <span class="waste-icon">🖥️</span>
+        <span class="waste-label">Motherboard</span>
+      </div>
+      <div class="waste-item" style="--item-color:rgba(0,255,136,0.15);--item-shadow:rgba(0,255,136,0.3)" onclick="scanItem(this, 'chip')">
+        <span class="waste-icon">💾</span>
+        <span class="waste-label">Memory Chip</span>
+      </div>
+      <!-- Cables / Plastics -->
+      <div class="waste-item" style="--item-color:rgba(255,107,0,0.15);--item-shadow:rgba(255,107,0,0.3)" onclick="scanItem(this, 'cable')">
+        <span class="waste-icon">🔌</span>
+        <span class="waste-label">Cable</span>
+      </div>
+      <div class="waste-item" style="--item-color:rgba(255,107,0,0.15);--item-shadow:rgba(255,107,0,0.3)" onclick="scanItem(this, 'charger')">
+        <span class="waste-icon">⚡</span>
+        <span class="waste-label">Charger</span>
+      </div>
+      <!-- Screens / Glass -->
+      <div class="waste-item" style="--item-color:rgba(180,0,255,0.15);--item-shadow:rgba(180,0,255,0.3)" onclick="scanItem(this, 'screen')">
+        <span class="waste-icon">📱</span>
+        <span class="waste-label">Phone Screen</span>
+      </div>
+      <div class="waste-item" style="--item-color:rgba(180,0,255,0.15);--item-shadow:rgba(180,0,255,0.3)" onclick="scanItem(this, 'lcd')">
+        <span class="waste-icon">🖨️</span>
+        <span class="waste-label">LCD Panel</span>
+      </div>
+      <!-- Extra items -->
+      <div class="waste-item" style="--item-color:rgba(0,212,255,0.15);--item-shadow:rgba(0,212,255,0.3)" onclick="scanItem(this, 'watch')">
+        <span class="waste-icon">⌚</span>
+        <span class="waste-label">Smartwatch</span>
+      </div>
+      <div class="waste-item" style="--item-color:rgba(0,255,136,0.15);--item-shadow:rgba(0,255,136,0.3)" onclick="scanItem(this, 'cpu')">
+        <span class="waste-icon">🔬</span>
+        <span class="waste-label">Processor</span>
+      </div>
+      <div class="waste-item" style="--item-color:rgba(255,107,0,0.15);--item-shadow:rgba(255,107,0,0.3)" onclick="scanItem(this, 'keyboard')">
+        <span class="waste-icon">⌨️</span>
+        <span class="waste-label">Keyboard</span>
+      </div>
+      <div class="waste-item" style="--item-color:rgba(180,0,255,0.15);--item-shadow:rgba(180,0,255,0.3)" onclick="scanItem(this, 'bulb')">
+        <span class="waste-icon">💡</span>
+        <span class="waste-label">LED Bulb</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- Smart Dustbins -->
+  <div class="bins-section">
+    <div class="bins-title">🗑️ Smart Classification Bins — Tap to Inspect</div>
+    <div class="bins-grid">
+
+      <div class="bin-card" id="bin-battery"
+           style="--bin-color:var(--bin1);--bin-shadow:rgba(0,212,255,0.3)"
+           onclick="openBinModal('battery')">
+        <div class="bin-icon-wrap">
+          <span class="bin-emoji">🗑️</span>
+          <span class="bin-lid">🔷</span>
+        </div>
+        <div class="bin-name">Bin 1</div>
+        <div class="bin-count" id="cnt-battery">0</div>
+        <div class="bin-label">Battery / Cells</div>
+        <div class="bin-fill-bar"><div class="bin-fill-inner" id="fill-battery"></div></div>
+        <div class="bin-sensors">
+          <div class="bin-sensor-dot"></div>
+          <div class="bin-sensor-dot"></div>
+          <div class="bin-sensor-dot"></div>
+        </div>
+      </div>
+
+      <div class="bin-card" id="bin-pcb"
+           style="--bin-color:var(--bin2);--bin-shadow:rgba(0,255,136,0.3)"
+           onclick="openBinModal('pcb')">
+        <div class="bin-icon-wrap">
+          <span class="bin-emoji">🗑️</span>
+          <span class="bin-lid">🟩</span>
+        </div>
+        <div class="bin-name">Bin 2</div>
+        <div class="bin-count" id="cnt-pcb">0</div>
+        <div class="bin-label">Circuit Boards</div>
+        <div class="bin-fill-bar"><div class="bin-fill-inner" id="fill-pcb"></div></div>
+        <div class="bin-sensors">
+          <div class="bin-sensor-dot"></div>
+          <div class="bin-sensor-dot"></div>
+          <div class="bin-sensor-dot"></div>
+        </div>
+      </div>
+
+      <div class="bin-card" id="bin-plastic"
+           style="--bin-color:var(--bin3);--bin-shadow:rgba(255,107,0,0.3)"
+           onclick="openBinModal('plastic')">
+        <div class="bin-icon-wrap">
+          <span class="bin-emoji">🗑️</span>
+          <span class="bin-lid">🟧</span>
+        </div>
+        <div class="bin-name">Bin 3</div>
+        <div class="bin-count" id="cnt-plastic">0</div>
+        <div class="bin-label">Cables / Plastic</div>
+        <div class="bin-fill-bar"><div class="bin-fill-inner" id="fill-plastic"></div></div>
+        <div class="bin-sensors">
+          <div class="bin-sensor-dot"></div>
+          <div class="bin-sensor-dot"></div>
+          <div class="bin-sensor-dot"></div>
+        </div>
+      </div>
+
+      <div class="bin-card" id="bin-screen"
+           style="--bin-color:var(--bin4);--bin-shadow:rgba(180,0,255,0.3)"
+           onclick="openBinModal('screen')">
+        <div class="bin-icon-wrap">
+          <span class="bin-emoji">🗑️</span>
+          <span class="bin-lid">🟪</span>
+        </div>
+        <div class="bin-name">Bin 4</div>
+        <div class="bin-count" id="cnt-screen">0</div>
+        <div class="bin-label">Screens / Glass</div>
+        <div class="bin-fill-bar"><div class="bin-fill-inner" id="fill-screen"></div></div>
+        <div class="bin-sensors">
+          <div class="bin-sensor-dot"></div>
+          <div class="bin-sensor-dot"></div>
+          <div class="bin-sensor-dot"></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Activity log -->
+  <div class="log-section">
+    <div class="log-header">
+      <div class="log-title">📋 System Activity Log</div>
+      <button class="log-clear" onclick="clearLog()">Clear</button>
+    </div>
+    <div class="log-body" id="logBody">
+      <div class="log-empty" id="logEmpty">No items scanned yet. Tap an item above to begin.</div>
+    </div>
+  </div>
+
+</div>
+
+<!-- Bottom hint -->
+<div class="hint-bar">
+  <span>Tap</span> waste items to scan · <span>Tap</span> bins to inspect sensors
+</div>
+
+<!-- Scan overlay -->
+<div class="scan-overlay" id="scanOverlay">
+  <div class="scan-bg-effect" onclick="closeScan()"></div>
+  <div class="scan-panel" id="scanPanel">
+    <span class="scan-item-icon" id="scanIcon">📦</span>
+    <div class="scan-title" id="scanTitle">SCANNING...</div>
+    <div class="sensor-badges" id="sensorBadges"></div>
+    <div class="scan-status-text" id="scanStatusText">Initializing sensors...</div>
+    <div class="scan-progress"><div class="scan-bar" id="scanBar"></div></div>
+    <div class="scan-results" id="scanResults"></div>
+    <button class="dispatch-btn" id="dispatchBtn" onclick="dispatchItem()">▶ DISPATCH TO BIN</button>
+    <button class="close-scan" id="closeScanBtn" onclick="closeScan()">CLOSE</button>
+  </div>
+</div>
+
+<!-- Bin detail modal -->
+<div class="bin-modal" id="binModal">
+  <div class="bin-modal-bg" onclick="closeBinModal()"></div>
+  <div class="bin-modal-panel" id="binModalPanel">
+    <span class="modal-icon" id="modalIcon">🗑️</span>
+    <div class="modal-name" id="modalName">BIN NAME</div>
+    <div class="modal-sensors" id="modalSensors"></div>
+    <div class="modal-items-list">
+      <div class="modal-items-title">Accepted E-Waste Types</div>
+      <div class="modal-items-tags" id="modalTags"></div>
+    </div>
+    <button class="modal-close" onclick="closeBinModal()">← CLOSE</button>
+  </div>
+</div>
+
+<script>
+// ─── Data Definitions ───────────────────────────────────────────────────────
+
+const ITEMS = {
+  battery: {
+    name: 'AA/AAA Battery', icon: '🔋', bin: 'battery',
+    metals: ['Lead (Pb)', 'Cadmium (Cd)', 'Manganese (Mn)'],
+    sensors: ['XRF Sensor', 'Chemical Sensor', 'pH Sensor'],
+    hazard: 'HIGH', weight: '28g',
+    color: '#00d4ff', shadow: 'rgba(0,212,255,0.4)'
+  },
+  'battery-li': {
+    name: 'Lithium Battery', icon: '🪫', bin: 'battery',
+    metals: ['Lithium (Li)', 'Cobalt (Co)', 'Nickel (Ni)'],
+    sensors: ['XRF Sensor', 'IR Spectrometer', 'Chemical Sensor'],
+    hazard: 'CRITICAL', weight: '45g',
+    color: '#00d4ff', shadow: 'rgba(0,212,255,0.4)'
+  },
+  pcb: {
+    name: 'Motherboard', icon: '🖥️', bin: 'pcb',
+    metals: ['Gold (Au)', 'Silver (Ag)', 'Copper (Cu)', 'Lead (Pb)'],
+    sensors: ['XRF Sensor', 'Visual AI Camera', 'RFID Reader'],
+    hazard: 'MEDIUM', weight: '320g',
+    color: '#00ff88', shadow: 'rgba(0,255,136,0.4)'
+  },
+  chip: {
+    name: 'Memory Chip', icon: '💾', bin: 'pcb',
+    metals: ['Gold (Au)', 'Tin (Sn)', 'Silicon (Si)'],
+    sensors: ['XRF Sensor', 'Visual AI Camera', 'Weight Sensor'],
+    hazard: 'LOW', weight: '12g',
+    color: '#00ff88', shadow: 'rgba(0,255,136,0.4)'
+  },
+  cable: {
+    name: 'Power Cable', icon: '🔌', bin: 'plastic',
+    metals: ['Copper (Cu)', 'Aluminum (Al)'],
+    sensors: ['Metal Detector', 'IR Spectrometer', 'Visual AI Camera'],
+    hazard: 'LOW', weight: '180g',
+    color: '#ff6b00', shadow: 'rgba(255,107,0,0.4)'
+  },
+  charger: {
+    name: 'USB Charger', icon: '⚡', bin: 'plastic',
+    metals: ['Copper (Cu)', 'Tin (Sn)', 'Iron (Fe)'],
+    sensors: ['Metal Detector', 'Weight Sensor', 'IR Spectrometer'],
+    hazard: 'LOW', weight: '85g',
+    color: '#ff6b00', shadow: 'rgba(255,107,0,0.4)'
+  },
+  screen: {
+    name: 'Phone Screen', icon: '📱', bin: 'screen',
+    metals: ['Indium (In)', 'Tin (Sn)', 'Rare Earth Elements'],
+    sensors: ['Visual AI Camera', 'Pressure Sensor', 'XRF Sensor'],
+    hazard: 'MEDIUM', weight: '45g',
+    color: '#b400ff', shadow: 'rgba(180,0,255,0.4)'
+  },
+  lcd: {
+    name: 'LCD Panel', icon: '🖨️', bin: 'screen',
+    metals: ['Mercury (Hg)', 'Indium (In)', 'Lead (Pb)'],
+    sensors: ['Chemical Sensor', 'XRF Sensor', 'Visual AI Camera'],
+    hazard: 'HIGH', weight: '600g',
+    color: '#b400ff', shadow: 'rgba(180,0,255,0.4)'
+  },
+  watch: {
+    name: 'Smartwatch', icon: '⌚', bin: 'battery',
+    metals: ['Lithium (Li)', 'Cobalt (Co)', 'Stainless Steel'],
+    sensors: ['XRF Sensor', 'RFID Reader', 'Chemical Sensor'],
+    hazard: 'MEDIUM', weight: '55g',
+    color: '#00d4ff', shadow: 'rgba(0,212,255,0.4)'
+  },
+  cpu: {
+    name: 'Processor', icon: '🔬', bin: 'pcb',
+    metals: ['Gold (Au)', 'Copper (Cu)', 'Silicon (Si)', 'Palladium (Pd)'],
+    sensors: ['XRF Sensor', 'Visual AI Camera', 'RFID Reader'],
+    hazard: 'LOW', weight: '35g',
+    color: '#00ff88', shadow: 'rgba(0,255,136,0.4)'
+  },
+  keyboard: {
+    name: 'Keyboard', icon: '⌨️', bin: 'plastic',
+    metals: ['Copper (Cu)', 'Steel (Fe)'],
+    sensors: ['Metal Detector', 'Weight Sensor', 'Visual AI Camera'],
+    hazard: 'LOW', weight: '550g',
+    color: '#ff6b00', shadow: 'rgba(255,107,0,0.4)'
+  },
+  bulb: {
+    name: 'LED Bulb', icon: '💡', bin: 'screen',
+    metals: ['Indium (In)', 'Gallium (Ga)', 'Arsenic (As)'],
+    sensors: ['Chemical Sensor', 'XRF Sensor', 'Optical Sensor'],
+    hazard: 'MEDIUM', weight: '65g',
+    color: '#b400ff', shadow: 'rgba(180,0,255,0.4)'
+  }
+};
+
+const BIN_INFO = {
+  battery: {
+    name: 'BATTERY BIN', icon: '🔋', color: '#00d4ff', shadow: 'rgba(0,212,255,0.3)',
+    sensors: [
+      { icon: '☢️', name: 'XRF Sensor — Metal Detection', status: 'ONLINE' },
+      { icon: '🧪', name: 'Chemical Sensor — Electrolyte ID', status: 'ONLINE' },
+      { icon: '⚗️', name: 'pH Sensor — Acid/Alkaline Check', status: 'ONLINE' },
+      { icon: '🌡️', name: 'Temperature Sensor — Safety Monitor', status: 'ONLINE' },
+      { icon: '📡', name: 'RFID Reader — Item Logging', status: 'ONLINE' }
+    ],
+    accepts: ['AA/AAA Battery', 'Lithium Battery', 'Ni-Cd Cell', 'Smartwatch', 'Button Cell', 'Power Bank']
+  },
+  pcb: {
+    name: 'CIRCUIT BOARD BIN', icon: '🖥️', color: '#00ff88', shadow: 'rgba(0,255,136,0.3)',
+    sensors: [
+      { icon: '☢️', name: 'XRF Sensor — Precious Metals', status: 'ONLINE' },
+      { icon: '📷', name: 'AI Vision Camera — Board Type', status: 'ONLINE' },
+      { icon: '📡', name: 'RFID Reader — Component ID', status: 'ONLINE' },
+      { icon: '⚖️', name: 'Weight Sensor — Mass Detection', status: 'ONLINE' },
+      { icon: '🔍', name: 'Optical Sensor — Visual Analysis', status: 'ONLINE' }
+    ],
+    accepts: ['Motherboard', 'Memory Chip', 'CPU/Processor', 'GPU Card', 'SSD', 'RAM Module']
+  },
+  plastic: {
+    name: 'CABLE & PLASTIC BIN', icon: '🔌', color: '#ff6b00', shadow: 'rgba(255,107,0,0.3)',
+    sensors: [
+      { icon: '🧲', name: 'Metal Detector — Wire Detection', status: 'ONLINE' },
+      { icon: '🔴', name: 'IR Spectrometer — Plastic Type', status: 'ONLINE' },
+      { icon: '📷', name: 'AI Vision Camera — Shape ID', status: 'ONLINE' },
+      { icon: '⚖️', name: 'Weight Sensor — Density Check', status: 'ONLINE' },
+      { icon: '📡', name: 'RFID Reader — Batch Logging', status: 'ONLINE' }
+    ],
+    accepts: ['USB Cable', 'Power Cord', 'Charger', 'Keyboard', 'Mouse', 'Plastic Housing']
+  },
+  screen: {
+    name: 'SCREEN & GLASS BIN', icon: '📱', color: '#b400ff', shadow: 'rgba(180,0,255,0.3)',
+    sensors: [
+      { icon: '☢️', name: 'XRF Sensor — Rare Earth Metals', status: 'ONLINE' },
+      { icon: '🧪', name: 'Chemical Sensor — Mercury/Indium', status: 'ONLINE' },
+      { icon: '📷', name: 'AI Vision Camera — Screen Type', status: 'ONLINE' },
+      { icon: '💥', name: 'Pressure Sensor — Glass Safety', status: 'ONLINE' },
+      { icon: '🌈', name: 'Optical Sensor — Display Type', status: 'ONLINE' }
+    ],
+    accepts: ['Phone Screen', 'LCD Panel', 'LED Bulb', 'Laptop Display', 'Monitor', 'Fluorescent Tube']
+  }
+};
+
+// ─── State ───────────────────────────────────────────────────────────────────
+
+const counts = { battery: 0, pcb: 0, plastic: 0, screen: 0 };
+const maxItems = 10;
+let totalItems = 0;
+let metalsFound = 0;
+let currentItem = null;
+let scanning = false;
+
+// ─── Scan logic ──────────────────────────────────────────────────────────────
+
+function scanItem(el, itemKey) {
+  if (scanning) return;
+  scanning = true;
+  currentItem = ITEMS[itemKey];
+
+  const overlay = document.getElementById('scanOverlay');
+  const panel = document.getElementById('scanPanel');
+
+  // Set overlay color vars
+  panel.style.setProperty('--scan-color', currentItem.color);
+  panel.style.setProperty('--scan-shadow', currentItem.shadow);
+
+  document.getElementById('scanIcon').textContent = currentItem.icon;
+  document.getElementById('scanTitle').textContent = currentItem.name.toUpperCase();
+  document.getElementById('scanBar').style.width = '0%';
+  document.getElementById('scanResults').classList.remove('visible');
+  document.getElementById('dispatchBtn').classList.remove('visible');
+  document.getElementById('closeScanBtn').classList.remove('visible');
+  document.getElementById('scanResults').innerHTML = '';
+  document.getElementById('scanStatusText').textContent = 'Initializing sensors...';
+
+  // Render sensor badges
+  const badgesEl = document.getElementById('sensorBadges');
+  badgesEl.innerHTML = '';
+  currentItem.sensors.forEach(s => {
+    const b = document.createElement('div');
+    b.className = 'sensor-badge';
+    b.style.color = currentItem.color;
+    b.style.borderColor = currentItem.color;
+    b.textContent = s;
+    b.setAttribute('data-badge', s);
+    badgesEl.appendChild(b);
+  });
+
+  overlay.classList.add('active');
+
+  // Progress animation
+  let progress = 0;
+  const phases = [
+    { pct: 20, label: 'Activating XRF sensor...', sensor: 0, delay: 300 },
+    { pct: 42, label: 'Scanning material composition...', sensor: 1, delay: 700 },
+    { pct: 65, label: 'Detecting metal traces...', sensor: 2, delay: 600 },
+    { pct: 82, label: 'Cross-referencing database...', sensor: null, delay: 500 },
+    { pct: 100, label: 'Classification complete ✓', sensor: null, delay: 500 }
+  ];
+
+  let phaseIdx = 0;
+
+  function runPhase() {
+    if (phaseIdx >= phases.length) {
+      showResults();
+      return;
+    }
+    const phase = phases[phaseIdx++];
+    setTimeout(() => {
+      animateBar(progress, phase.pct);
+      progress = phase.pct;
+      document.getElementById('scanStatusText').textContent = phase.label;
+      if (phase.sensor !== null) {
+        const badges = document.querySelectorAll('.sensor-badge');
+        if (badges[phase.sensor]) {
+          badges[phase.sensor].classList.add('active');
+        }
+      }
+      runPhase();
+    }, phase.delay);
+  }
+
+  // Small delay before starting
+  setTimeout(runPhase, 200);
+}
+
+function animateBar(from, to) {
+  let current = from;
+  const bar = document.getElementById('scanBar');
+  const step = () => {
+    if (current >= to) return;
+    current = Math.min(current + 2, to);
+    bar.style.width = current + '%';
+    bar.style.background = currentItem.color;
+    bar.style.boxShadow = `0 0 12px ${currentItem.color}`;
+    requestAnimationFrame(step);
+  };
+  requestAnimationFrame(step);
+}
+
+function showResults() {
+  const resultsEl = document.getElementById('scanResults');
+  const dispatchBtn = document.getElementById('dispatchBtn');
+  const closeScanBtn = document.getElementById('closeScanBtn');
+
+  const binNames = { battery: 'Battery Bin', pcb: 'Circuit Board Bin', plastic: 'Cable & Plastic Bin', screen: 'Screen & Glass Bin' };
+  const hazardColors = { LOW: '#00ff88', MEDIUM: '#ffaa00', HIGH: '#ff6b00', CRITICAL: '#ff003c' };
+
+  const rows = [
+    { label: 'Classification', value: binNames[currentItem.bin].toUpperCase() },
+    { label: 'Hazard Level', value: currentItem.hazard, color: hazardColors[currentItem.hazard] || '#fff' },
+    { label: 'Metals Detected', value: currentItem.metals.join(' · ') },
+    { label: 'Est. Weight', value: currentItem.weight },
+    { label: 'Confidence', value: (92 + Math.floor(Math.random() * 7)) + '%' }
+  ];
+
+  rows.forEach((row, i) => {
+    setTimeout(() => {
+      const div = document.createElement('div');
+      div.className = 'result-row';
+      div.style.animationDelay = `0ms`;
+      div.innerHTML = `<span class="result-label">${row.label}</span>
+        <span class="result-value" style="color:${row.color || currentItem.color}">${row.value}</span>`;
+      resultsEl.appendChild(div);
+    }, i * 120);
+  });
+
+  setTimeout(() => {
+    resultsEl.classList.add('visible');
+    dispatchBtn.style.background = currentItem.color;
+    dispatchBtn.style.boxShadow = `0 4px 24px ${currentItem.shadow}`;
+    dispatchBtn.classList.add('visible');
+    closeScanBtn.classList.add('visible');
+  }, 200);
+
+  document.getElementById('scanStatusText').textContent = '✓ Analysis complete — Ready to dispatch';
+}
+
+function dispatchItem() {
+  if (!currentItem) return;
+  const bin = currentItem.bin;
+
+  // Close scan overlay
+  closeScan(true);
+
+  // Get target bin position for animation
+  setTimeout(() => {
+    const binEl = document.getElementById('bin-' + bin);
+    const binRect = binEl.getBoundingClientRect();
+
+    // Create flying item
+    const fly = document.createElement('div');
+    fly.className = 'flying-item';
+    fly.textContent = currentItem.icon;
+    fly.style.top = (window.innerHeight / 2) + 'px';
+    fly.style.left = (window.innerWidth / 2 - 20) + 'px';
+    fly.style.fontSize = '2.5rem';
+    document.body.appendChild(fly);
+
+    requestAnimationFrame(() => {
+      fly.style.top = (binRect.top + binRect.height / 2) + 'px';
+      fly.style.left = (binRect.left + binRect.width / 2 - 20) + 'px';
+      fly.style.opacity = '0';
+      fly.style.transform = 'scale(0.3)';
+    });
+
+    // Open bin lid
+    binEl.classList.add('open', 'receiving');
+
+    // Trigger scan line
+    triggerScanLine(currentItem.color);
+
+    // Burst effect at bin
+    setTimeout(() => {
+      burstAt(binRect.left + binRect.width / 2, binRect.top + binRect.height / 2, currentItem.color);
+      fly.remove();
+    }, 700);
+
+    // Update counts
+    setTimeout(() => {
+      counts[bin]++;
+      totalItems++;
+      metalsFound += currentItem.metals.length;
+
+      document.getElementById('cnt-' + bin).textContent = counts[bin];
+      document.getElementById('stat-total').textContent = totalItems;
+      document.getElementById('stat-metals').textContent = metalsFound;
+      document.getElementById('stat-rate').textContent = (93 + Math.floor(Math.random() * 6)) + '%';
+      document.getElementById('totalCount').textContent = totalItems;
+
+      // Fill bar
+      const fillPct = Math.min((counts[bin] / maxItems) * 100, 100);
+      document.getElementById('fill-' + bin).style.width = fillPct + '%';
+      binEl.style.setProperty('--fill-height', fillPct + '%');
+
+      // Close lid
+      setTimeout(() => binEl.classList.remove('open', 'receiving'), 1200);
+
+      // Log entry
+      addLog(currentItem, bin);
+
+    }, 600);
+
+  }, 300);
+}
+
+function triggerScanLine(color) {
+  const line = document.getElementById('scanLine');
+  line.style.setProperty('--line-color', color);
+  line.classList.remove('sweeping');
+  void line.offsetWidth;
+  line.classList.add('sweeping');
+}
+
+function burstAt(x, y, color) {
+  for (let i = 0; i < 14; i++) {
+    const p = document.createElement('div');
+    p.className = 'burst-particle';
+    p.style.left = x + 'px';
+    p.style.top = y + 'px';
+    p.style.background = color;
+    const angle = (i / 14) * 360;
+    const dist = 40 + Math.random() * 40;
+    const tx = Math.cos(angle * Math.PI / 180) * dist + 'px';
+    const ty = Math.sin(angle * Math.PI / 180) * dist + 'px';
+    p.style.setProperty('--tx', tx);
+    p.style.setProperty('--ty', ty);
+    document.body.appendChild(p);
+    setTimeout(() => p.remove(), 900);
+  }
+}
+
+function closeScan(keepItem = false) {
+  document.getElementById('scanOverlay').classList.remove('active');
+  if (!keepItem) currentItem = null;
+  setTimeout(() => { scanning = false; }, 400);
+}
+
+// ─── Log ─────────────────────────────────────────────────────────────────────
+
+const logColors = { battery: '#00d4ff', pcb: '#00ff88', plastic: '#ff6b00', screen: '#b400ff' };
+const logBinLabels = { battery: 'BATTERY', pcb: 'PCB', plastic: 'CABLE', screen: 'SCREEN' };
+
+function addLog(item, bin) {
+  const empty = document.getElementById('logEmpty');
+  if (empty) empty.remove();
+
+  const logBody = document.getElementById('logBody');
+  const now = new Date();
+  const time = now.toLocaleTimeString('en', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+
+  const entry = document.createElement('div');
+  entry.className = 'log-entry';
+  entry.style.setProperty('--entry-color', logColors[bin]);
+  entry.innerHTML = `
+    <span class="log-time">${time}</span>
+    <span class="log-msg">${item.icon} ${item.name} → ${['Battery Bin','Circuit Board Bin','Cable & Plastic Bin','Screen & Glass Bin'][['battery','pcb','plastic','screen'].indexOf(bin)]}</span>
+    <span class="log-tag" style="background:${logColors[bin]}">${logBinLabels[bin]}</span>
+  `;
+  logBody.prepend(entry);
+}
+
+function clearLog() {
+  const logBody = document.getElementById('logBody');
+  logBody.innerHTML = '<div class="log-empty" id="logEmpty">No items scanned yet. Tap an item above to begin.</div>';
+}
+
+// ─── Bin Modal ───────────────────────────────────────────────────────────────
+
+function openBinModal(binKey) {
+  const info = BIN_INFO[binKey];
+  const modal = document.getElementById('binModal');
+  const panel = document.getElementById('binModalPanel');
+
+  panel.style.setProperty('--modal-color', info.color);
+  panel.style.setProperty('--modal-shadow', info.shadow);
+
+  document.getElementById('modalIcon').textContent = info.icon;
+  document.getElementById('modalName').textContent = info.name;
+
+  const sensorsEl = document.getElementById('modalSensors');
+  sensorsEl.innerHTML = '';
+  info.sensors.forEach(s => {
+    const div = document.createElement('div');
+    div.className = 'modal-sensor-row';
+    div.innerHTML = `<span class="sensor-icon">${s.icon}</span>
+      <span class="sensor-name">${s.name}</span>
+      <span class="sensor-status" style="color:${info.color}">● ${s.status}</span>`;
+    sensorsEl.appendChild(div);
+  });
+
+  const tagsEl = document.getElementById('modalTags');
+  tagsEl.innerHTML = '';
+  info.accepts.forEach(a => {
+    const span = document.createElement('span');
+    span.className = 'modal-tag';
+    span.textContent = a;
+    tagsEl.appendChild(span);
+  });
+
+  modal.classList.add('active');
+}
+
+function closeBinModal() {
+  document.getElementById('binModal').classList.remove('active');
+}
+
+// ─── Ambient particles ───────────────────────────────────────────────────────
+
+(function spawnParticles() {
+  for (let i = 0; i < 20; i++) {
+    const p = document.createElement('div');
+    p.className = 'particle';
+    const colors = ['#00d4ff', '#00ff88', '#ff6b00', '#b400ff'];
+    p.style.background = colors[Math.floor(Math.random() * colors.length)];
+    p.style.left = Math.random() * 100 + 'vw';
+    p.style.top = Math.random() * 100 + 'vh';
+    const size = 2 + Math.random() * 3;
+    p.style.width = size + 'px';
+    p.style.height = size + 'px';
+    document.body.appendChild(p);
+
+    function animateParticle() {
+      const duration = 4000 + Math.random() * 6000;
+      const startX = parseFloat(p.style.left);
+      const startY = parseFloat(p.style.top);
+      const endX = Math.random() * 100;
+      const endY = Math.random() * 100;
+      p.style.transition = `all ${duration}ms linear, opacity 1s ease`;
+      p.style.opacity = 0.3 + Math.random() * 0.5;
+      requestAnimationFrame(() => {
+        p.style.left = endX + 'vw';
+        p.style.top = endY + 'vh';
+      });
+      setTimeout(() => {
+        p.style.opacity = 0;
+        setTimeout(animateParticle, 1000);
+      }, duration - 1000);
+    }
+
+    setTimeout(() => animateParticle(), Math.random() * 3000);
+  }
+})();
+</script>
+</body>
+</html>
